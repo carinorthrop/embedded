@@ -4,6 +4,109 @@
 ; ***
 ; *** need a description of this project here 
 
+; P2 = command
+; P1.0 = Enable
+; P1.1 = R/W
+; P1.2 = RS
+
+command equ 40h
+text equ 41h
+
+decimalCount equ 42h
+onesCount equ 43h
+tensCount equ 44h
+
+InitializeLCD:
+	mov tmod, #01h ; timer 0 mode 1
+	;lcall initDelay ; commented out because i don't want to wait
+	mov command, #38h ; set function
+	lcall writeCmd
+	mov command, #0Fh ; set data pattern
+	lcall writeCmd
+	mov command, #01h ; clear display
+    	lcall writeCmd
+    	mov command, #06h ; auto advance cursor
+	lcall writeCmd
+	mov command, #0Fh ; turn on display
+	lcall writeCmd
+
+; Main
+main:
+	clr P3.0
+	setb P1.4 ; start
+	setb P1.5 ; lap
+	setb P1.6 ; stop
+	setb P1.7 ; reset
+
+	jnb P1.4, handleStart
+	jnb P1.5, handleLap
+	jnb P1.6, handleStop
+	jnb P1.7, handleReset
+
+handleStart:
+
+	sjmp main
+
+handleLap:
+
+	sjmp main
+
+handleStop:
+
+	sjmp main
+
+handleReset:
+
+	sjmp main
+
+
+; Utility 
+writeCmd:
+	mov P0, command
+	clr P1.2 ; clear RS
+	clr P1.1 ; clear R/W
+	lcall LCDclock
+	ret
+	
+Writehar:
+	mov P0, #00110000b
+	setb P1.2 ; set RS
+	clr P1.1 ; clear R/W
+	lcall LCDclock
+	ret
+
+LCDclock:
+	setb P1.0 ; enable
+	nop
+	clr P1.0 ; disable
+	nop
+	setb P1.0 ; enable it
+	nop
+	nop
+	nop
+	ret
+
+initDelay:
+	clr TF0
+	clr TR0
+	mov TH0, #3Ch
+	mov TL0, #0AFh
+	setb TR0
+	delayLoop: 
+		jnb TF0, delayLoop
+	clr TR0
+	clr TF0
+	ret
+
+
+
+
+
+
+
+
+
+
 ; !!! Do not let program flow after here! 
 ; !!! Lookup table for display 
 table:

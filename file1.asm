@@ -4,17 +4,25 @@
 ; ***
 ; *** need a description of this project here 
 
-; P2 = command
+; P0 = command
 ; P1.0 = Enable
 ; P1.1 = R/W
 ; P1.2 = RS
 
-command equ 40h
-text equ 41h
+; TODO: test lap, implement lap?? add real 1s delays
+
+command equ 40h		; hold the command to be executed on the LCD
+text equ 41h		; hold the value to be written to the LCD
 
 decimalCount equ 42h
 onesCount equ 43h
 tensCount equ 44h
+
+initProgram:
+mov dptr, #Table ; set the lookup table
+mov decimalCount, #00h	; the decimal counter
+mov onesCount, #00h	; the ones counter
+mov tensCount, #00h	; the tens counter
 
 InitializeLCD:
 	mov tmod, #01h ; timer 0 mode 1
@@ -32,44 +40,206 @@ InitializeLCD:
 
 ; Main
 main:
-	clr P3.0
-	setb P1.4 ; start
-	setb P1.5 ; lap
-	setb P1.6 ; stop
-	setb P1.7 ; reset
+	clr P3.0		; P3.0 will control a row on the keypad
+	setb P1.4 		; Start button
+	setb P1.5 		; Lap button
+	setb P1.6 		; Stop button
+	setb P1.7 		; Reset button
 
-	jnb P1.4, handleStart
-	jnb P1.5, handleLap
-	jnb P1.6, handleStop
-	jnb P1.7, handleReset
+	jnb P1.4, handleStart	; Jump to the start handler
+	jnb P1.5, handleLap	; Jump to the lap handler
+	jnb P1.6, handleStop	; Jump the stop handler
+	jnb P1.7, handleReset	; Jump to the reset handler
 
 handleStart:
+	mov a, #0f7h 		; Set accum to 247
+	add a, decimalCount	; Add the decimal count to accumulator
+	jc testOnes		; Decimal is > 9, try to increase ones place
+	jnc increaseDecimal	; Decimal is < 9, increase decimal
 
-	sjmp main
+	testOnes:		; Test to see if ones place < 9
+	mov a, #0f7h
+	add a, onesCount
+	jc testTens		; If we carry, then ones & decimal == 9, tst the tens place
+	jnc increaseOnes	; If we don't carry, increment ones
+
+	testTens:		; Test to see tens place is < 9
+	mov a, #0f7h
+	add a, tensCount
+	jc zeroAll		; If it equals 9, then we should zero everything out
+	jnc increaseTens	; If it is < 9, increment tens place
+
+	increaseDecimal:	; Increment the decimal place
+	mov a, decimalCount	; Add one to the count
+	add a, #01h
+	mov decimalCount, a	; Move incremented value back
+	lcall printNums		; Print the numbers
+	ljmp printStart		; Print the state
+
+	increaseOnes:		; Increment the ones place
+	mov a, onesCount
+	add a, #01h
+	mov onesCount, a	; Move incremented value back
+	mov decimalCount, #00h	; Zero out the decimal place
+	lcall printNums		; Print the numbers
+	ljmp printStart		; Print the state
+
+	increaseTens:		; Increment the tens place
+	mov a, tensCount
+	add a, #01h
+	mov tensCount, a	; Move the incremented value back
+	mov decimalCount, #00h	; Zero out the decimal place
+	mov onesCount, #00h	; Zero out the ones place
+	lcall printNums		; Print the numbers
+	ljmp printStart		; Print the state
+
+	zeroAll:		; Zero everything (99.9s)
+	mov decimalCount, #00h	; Zero out the decimal place
+	mov onesCount, #00h	; Zero out the ones place
+	mov tensCount, #00h	; Zero out the tens place
+	lcall printNums		; Print the numbers
+	ljmp printStart		; Print the start
 
 handleLap:
-
-	sjmp main
+	jmp printLap
 
 handleStop:
-
-	sjmp main
+	lcall printNums
+	jmp printStop
 
 handleReset:
+	mov decimalCount, #00h
+	mov onesCount, #00h
+	mov tensCount, #00h
+	lcall printNums
+	ljmp printReset
 
-	sjmp main
+printNums:
+	mov command, #80h
+	lcall writeCmd
 
+	; Print value for tens count
+	mov a, tensCount
+	movc a, @a+dptr
+	mov text, a
+	lcall writeText
 
-; Utility 
+	; Print value for ones count
+	mov a, onesCount
+	movc a, @a+dptr
+	mov text, a
+	lcall writeText
+
+	; Print the decimal place
+	mov text, #2Eh 
+	lcall writeText
+
+	; Print value for decimal count
+	mov a, decimalCount
+	movc a, @a+dptr
+	mov text, a
+	lcall writeText
+
+	; Print the s
+	mov text, #73h
+	lcall writeText
+
+	ret
+
+printStart:
+	; Move the cursor
+	mov command, #0C6h
+	lcall writeCmd
+
+	mov text, #53h ; S
+	lcall writeText
+
+	mov text, #74h ; write t
+	lcall writeText
+
+	mov text, #61h ; write a
+	lcall writeText
+
+	mov text, #72h ; write r
+	lcall writeText
+
+	mov text, #74h ; write t
+	lcall writeText
+
+	ljmp main
+
+printReset:
+	mov command, #0C6h
+	lcall writeCmd
+
+	mov text, #52h ; R
+	lcall writeText
+
+	mov text, #65h ; e
+	lcall writeText
+
+	mov text, #73h ; s
+	lcall writeText
+
+	mov text, #65h ; e
+	lcall writeText
+
+	mov text, #74h ; t
+	lcall writeText
+
+	ljmp main
+
+printStop:
+	mov command, #0C6h
+	lcall writeCmd
+
+	mov text, #53h ; S
+	lcall writeText
+
+	mov text, #74h ; t
+	lcall writeText
+
+	mov text, #6Fh ; o
+	lcall writeText
+
+	mov text, #70h ; p
+	lcall writeText
+
+	mov text, #20h ; blank
+	lcall writeText
+
+	ljmp main
+
+	printStop:
+	mov command, #0C6h
+	lcall writeCmd
+
+	mov text, #4Ch ; L
+	lcall writeText
+
+	mov text, #61h ; a
+	lcall writeText
+
+	mov text, #70h ; p
+	lcall writeText
+
+	mov text, #20h ; blank
+	lcall writeText
+
+	mov text, #20h ; blank
+	lcall writeText
+
+	ljmp main
+; Utility
 writeCmd:
 	mov P0, command
 	clr P1.2 ; clear RS
 	clr P1.1 ; clear R/W
 	lcall LCDclock
 	ret
-	
-Writehar:
-	mov P0, #00110000b
+
+writeText:
+	mov P0, text
 	setb P1.2 ; set RS
 	clr P1.1 ; clear R/W
 	lcall LCDclock
@@ -98,38 +268,24 @@ initDelay:
 	clr TF0
 	ret
 
-
-
-
-
-
-
-
-
-
 ; !!! Do not let program flow after here! 
 ; !!! Lookup table for display 
+
 table:
 	;		MSB						LSB
 	;		g	f	e	d	c	b	a
-.db 3FH	;	0	0	1	1	1	1	1	1	0x3F
-.db 06H	;	1	0	0	0	0	1	1	0	0x06
-.db 5BH	;	2	1	0	1	1	0	1	1	0x5B
-.db 4FH	;	3	1	0	0	1	1	1	1	0x4F
-.db 66H	;	4	1	1	0	0	1	1	0	0x66
-.db 6DH	;	5	1	1	0	1	1	0	1	0x6D
-.db 7CH	;	6	1	1	1	1	1	0	0	0x7C
-.db 07H	;	7	0	0	0	0	1	1	1	0x07
-.db 7FH	;	8	1	1	1	1	1	1	1	0x7F
-.db 6FH	;	9	1	1	0	1	1	1	1	0x6F
-.db 77H	;	A	1	1	1	0	1	1	1	0x77
-.db 7CH	;	b	1	1	1	1	1	0	0	0x7C
-.db 39H	;	c	0	0	0	1	1	1	1	0x0F (*)
-.db 5EH ;	d	1	0	1	1	1	1	0	0x7E (*)
-.db 79H	;	E	1	1	1	1	0	0	1	0x79
-.db 71H	;	F	1	1	1	0	0	0	1	0x71
-.db 0FFH ; just in case value. This should never be read back from a MOVC.
+.db 30H	;	0	0	1	1	1	1	1	1	0x3F
+.db 31H	;	1	0	0	0	0	1	1	0	0x06
+.db 32H	;	2	1	0	1	1	0	1	1	0x5B
+.db 33H	;	3	1	0	0	1	1	1	1	0x4F
+.db 34H	;	4	1	1	0	0	1	1	0	0x66
+.db 35H	;	5	1	1	0	1	1	0	1	0x6D
+.db 36H	;	6	1	1	1	1	1	0	0	0x7C
+.db 37H	;	7	0	0	0	0	1	1	1	0x07
+.db 38H	;	8	1	1	1	1	1	1	1	0x7F
+.db 39H	;	9	1	1	0	1	1	1	1	0x6F
 
 ; !!! Also very important: Do not walk off the lookup table!
 ; !!! The returned result will be undefined. 
 .end
+

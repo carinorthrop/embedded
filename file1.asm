@@ -2,7 +2,13 @@
 ; *** Final Project 			Due: 05/01/2020
 ; *** Sydney O'Connor, Caroline Northrop, JT Salisbury 
 ; ***
-; *** need a description of this project here 
+; *** This program is an implementation of a basic stopwatch, using the 
+; *** a matrix keypad and the LCD 2x16 bit display virtual hardware. 
+; *** The stopwatch has 4 states: Reset, Stop, Lap, Start.
+; *** Reset - Resets the counter display to zero, displays reset tag
+; *** Stop - Stops the counter display, displays stop tag
+; *** Lap - TODO 
+; *** Start - Starts the counter display, displays start tag 
 
 ; P0 = command
 ; P1.0 = Enable
@@ -285,7 +291,5 @@ table:
 .db 38H	;	8	1	1	1	1	1	1	1	0x7F
 .db 39H	;	9	1	1	0	1	1	1	1	0x6F
 
-; !!! Also very important: Do not walk off the lookup table!
-; !!! The returned result will be undefined. 
 .end
 

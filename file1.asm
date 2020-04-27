@@ -20,7 +20,7 @@
 command equ 40h		; hold the command to be executed on the LCD
 text equ 41h		; hold the value to be written to the LCD
 
-decimalCount equ 42h
+decimalCount equ 42h	; initialize the counter values 
 onesCount equ 43h
 tensCount equ 44h
 
@@ -114,9 +114,9 @@ handleStop:
 	jmp printStop
 
 handleReset:
-	mov decimalCount, #00h
-	mov onesCount, #00h
-	mov tensCount, #00h
+	mov decimalCount, #00h	; resets the decimal count to zero 
+	mov onesCount, #00h	; resets the ones count to zero
+	mov tensCount, #00h	; resets the tens count to zero
 	lcall printNums
 	ljmp printReset
 
@@ -126,13 +126,13 @@ printNums:
 
 	; Print value for tens count
 	mov a, tensCount
-	movc a, @a+dptr
+	movc a, @a+dptr		; reference to the lookup table 
 	mov text, a
 	lcall writeText
 
 	; Print value for ones count
 	mov a, onesCount
-	movc a, @a+dptr
+	movc a, @a+dptr		; reference to the lookup table 
 	mov text, a
 	lcall writeText
 
@@ -152,6 +152,7 @@ printNums:
 
 	ret
 
+; show the start label on the LCD display 
 printStart:
 	; Move the cursor
 	mov command, #0C6h
@@ -174,6 +175,7 @@ printStart:
 
 	ljmp main
 
+; show the print label on the LCD display 
 printReset:
 	mov command, #0C6h
 	lcall writeCmd
@@ -195,6 +197,7 @@ printReset:
 
 	ljmp main
 
+; show the stop label on the LCD display 
 printStop:
 	mov command, #0C6h
 	lcall writeCmd
@@ -216,7 +219,8 @@ printStop:
 
 	ljmp main
 
-	printStop:
+; show the lap label on the LCD display 
+printLap:
 	mov command, #0C6h
 	lcall writeCmd
 
@@ -236,6 +240,7 @@ printStop:
 	lcall writeText
 
 	ljmp main
+	
 ; Utility
 writeCmd:
 	mov P0, command
@@ -292,4 +297,5 @@ table:
 .db 39H	;	9	1	1	0	1	1	1	1	0x6F
 
 .end
+
 

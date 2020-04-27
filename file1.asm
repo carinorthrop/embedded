@@ -24,7 +24,7 @@
 
 command equ 40h		; hold the command to be executed on the LCD
 text equ 41h		; hold the value to be written to the LCD
-lastState equ 45h	; hold the value of the last state (1 = start, 2 = lap, 3 = resent, 4 = stop)
+lastState equ 45h	; hold the value of the last state (1 = start FF, 2 = lap FE, 3 = reset FD, 4 = stop FC)
 
 decimalCount equ 42h
 onesCount equ 43h
@@ -124,15 +124,16 @@ main:
 canMoveLap:	; Determine if we can move to the lap state
 	mov a, #0FCh 	; test if in stop state
 	add a, lastState
-	jc main
+	jc handleStop
+
+	mov a, #0FDh 	; test if in reset state
+	add a, lastState
+	jc handleReset
 
 	mov a, #0FEh 	; test if in lap state
 	add a, lastState
 	jc handleLap
 
-	mov a, #0FDh 	; test if in reset state
-	add a, lastState
-	jc main
 
 	jmp handleLap	; only state left is start
 
@@ -146,15 +147,16 @@ canMoveReset:
 	add a, lastState
 	jc handleReset
 
-	mov a, #0FEh 	; test if in lap state
-	add a, lastState
-	jc handleReset
-
 	mov a, #0FDh 	; test if in reset state
 	add a, lastState
 	jc handleReset
 
-	jmp main	; only state left is start
+	mov a, #0FEh 	; test if in lap state
+	add a, lastState
+	jc handleReset
+
+
+	jmp handleStart	; only state left is start
 
 handleReset:
 	mov lastState, #03h	; Set the last state to 0x03 (reset)
@@ -170,13 +172,13 @@ canMoveStop:
 	add a, lastState
 	jc handleStop
 
-	mov a, #0FEh 	; test if in lap state
-	add a, lastState
-	jc main
-
 	mov a, #0FDh 	; test if in reset state
 	add a, lastState
-	jc main
+	jc handleReset
+
+	mov a, #0FEh 	; test if in lap state
+	add a, lastState
+	jc handleLap
 
 	jmp handleStop	; only state left is start
 

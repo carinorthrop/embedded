@@ -7,7 +7,7 @@
 ; *** The stopwatch has 4 states: Reset, Stop, Lap, Start.
 ; *** Reset - Resets the counter display to zero, displays reset tag
 ; *** Stop - Stops the counter display, displays stop tag
-; *** Lap - Pauses the counter display, displays stop tag
+; *** Lap - Pauses the counter display, displays lap tag
 ; *** Start - Starts the counter display, displays start tag
 ;;;;;; LCD Wiring
 ; P0 = command/text
@@ -20,7 +20,7 @@
 ; P1.6 = Stop
 ; P1.7 = Reset
 ; *********************NOTE*********************
-; For use on a real device, lines 41 and 109 should be uncommented out
+; For use on a real device, lines 41, 109 and 330 should be uncommented out. For this lab, ignore delays was set to true on the LCD
 
 command equ 40h		; hold the command to be executed on the LCD
 text equ 41h		; hold the value to be written to the LCD
@@ -327,9 +327,7 @@ LCDclock:		; Clock the LCD and update the display
 	clr P1.0 	; disable
 	nop
 	setb P1.0 	; enable it
-	nop
-	nop
-	nop
+	;lcall clockDelay ; wait for 3ms
 	ret
 
 initDelay:			; Delay for 50ms
@@ -350,6 +348,17 @@ msDelay:			; Delay for 100 ms
 
 	ret
 
+clockDelay:			; Delay for 3ms; used in the clock
+	clr TF0
+	clr TR0
+	mov TH0, #0F4h
+	mov TL0, #47h
+	setb TR0
+	delayLoop2:
+		jnb TF0, delayLoop2
+	clr TR0
+	clr TF0
+	ret
 
 ; Lookup table for display
 table:

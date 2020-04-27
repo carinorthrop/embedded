@@ -1,26 +1,32 @@
 ; *** *** *** *** *** *** *** *** *** *** *** *** ***
 ; *** Final Project 			Due: 05/01/2020
-; *** Sydney O'Connor, Caroline Northrop, JT Salisbury 
+; *** Sydney O'Connor, Caroline Northrop, JT Salisbury
 ; ***
-; *** This program is an implementation of a basic stopwatch, using the 
-; *** a matrix keypad and the LCD 2x16 bit display virtual hardware. 
+; *** This program is an implementation of a basic stopwatch, using the
+; *** a matrix keypad and the LCD 2x16 bit display virtual hardware.
 ; *** The stopwatch has 4 states: Reset, Stop, Lap, Start.
 ; *** Reset - Resets the counter display to zero, displays reset tag
 ; *** Stop - Stops the counter display, displays stop tag
-; *** Lap - TODO 
-; *** Start - Starts the counter display, displays start tag 
-
-; P0 = command
+; *** Lap - Pauses the counter display, displays stop tag
+; *** Start - Starts the counter display, displays start tag
+;;;;;; LCD Wiring
+; P0 = command/text
 ; P1.0 = Enable
 ; P1.1 = R/W
 ; P1.2 = RS
-
-; TODO: test lap, implement lap?? add real 1s delays
+;;;;;; Keypad wiring
+; P1.4 = Start
+; P1.5 = Lap
+; P1.6 = Stop
+; P1.7 = Reset
+; *********************NOTE*********************
+; For use on a real device, lines 41 and 109 should be uncommented out
 
 command equ 40h		; hold the command to be executed on the LCD
 text equ 41h		; hold the value to be written to the LCD
+lastState equ 45h	; hold the value of the last state (1 = start, 2 = lap, 3 = resent, 4 = stop)
 
-decimalCount equ 42h	; initialize the counter values 
+decimalCount equ 42h
 onesCount equ 43h
 tensCount equ 44h
 
@@ -29,6 +35,7 @@ mov dptr, #Table ; set the lookup table
 mov decimalCount, #00h	; the decimal counter
 mov onesCount, #00h	; the ones counter
 mov tensCount, #00h	; the tens counter
+mov lastState, #01h	; begin in the start state
 
 InitializeLCD:
 	mov tmod, #01h ; timer 0 mode 1
@@ -44,20 +51,18 @@ InitializeLCD:
 	mov command, #0Fh ; turn on display
 	lcall writeCmd
 
-; Main
-main:
-	clr P3.0		; P3.0 will control a row on the keypad
-	setb P1.4 		; Start button
-	setb P1.5 		; Lap button
-	setb P1.6 		; Stop button
-	setb P1.7 		; Reset button
+ljmp main	; This has been moved to the middle of the file due to jb address referencing capabilities
 
-	jnb P1.4, handleStart	; Jump to the start handler
-	jnb P1.5, handleLap	; Jump to the lap handler
-	jnb P1.6, handleStop	; Jump the stop handler
-	jnb P1.7, handleReset	; Jump to the reset handler
+canMoveStart:	; Determine if we can move to the start state
+	mov a, #0FCh 	; test if in stop state
+	add a, lastState
+	jc main
+
+	jmp handleStart ; we can move to the start in lap, reset or start (garuanteed to be one of these)
 
 handleStart:
+	mov lastState, #01h	; Set the last state to 0x01 (start)
+
 	mov a, #0f7h 		; Set accum to 247
 	add a, decimalCount	; Add the decimal count to accumulator
 	jc testOnes		; Decimal is > 9, try to increase ones place
@@ -76,24 +81,18 @@ handleStart:
 	jnc increaseTens	; If it is < 9, increment tens place
 
 	increaseDecimal:	; Increment the decimal place
-	mov a, decimalCount	; Add one to the count
-	add a, #01h
-	mov decimalCount, a	; Move incremented value back
+	inc decimalCount	; Increase decimal count by one
 	lcall printNums		; Print the numbers
 	ljmp printStart		; Print the state
 
 	increaseOnes:		; Increment the ones place
-	mov a, onesCount
-	add a, #01h
-	mov onesCount, a	; Move incremented value back
+	inc onesCount		; Increment ones count by one
 	mov decimalCount, #00h	; Zero out the decimal place
 	lcall printNums		; Print the numbers
 	ljmp printStart		; Print the state
 
 	increaseTens:		; Increment the tens place
-	mov a, tensCount
-	add a, #01h
-	mov tensCount, a	; Move the incremented value back
+	inc tensCount		; Increment tens count by one
 	mov decimalCount, #00h	; Zero out the decimal place
 	mov onesCount, #00h	; Zero out the ones place
 	lcall printNums		; Print the numbers
@@ -106,38 +105,104 @@ handleStart:
 	lcall printNums		; Print the numbers
 	ljmp printStart		; Print the start
 
+; Main
+main:
+	;lcall msDelay		; Delay to accurately represent 1/10 of a second
+	clr P3.0		; P3.0 will control a row on the keypad
+	setb P1.4 		; Start button
+	setb P1.5 		; Lap button
+	setb P1.6 		; Stop button
+	setb P1.7 		; Reset button
+
+	jnb P1.4, canMoveStart	; Jump to the start handler
+	jnb P1.5, canMoveLap	; Jump to the lap handler
+	jnb P1.6, canMoveStop	; Jump the stop handler
+	jnb P1.7, canMoveReset	; Jump to the reset handler
+
+	sjmp main		; No button is pressed, so we will just go back to main
+
+canMoveLap:	; Determine if we can move to the lap state
+	mov a, #0FCh 	; test if in stop state
+	add a, lastState
+	jc main
+
+	mov a, #0FEh 	; test if in lap state
+	add a, lastState
+	jc handleLap
+
+	mov a, #0FDh 	; test if in reset state
+	add a, lastState
+	jc main
+
+	jmp handleLap	; only state left is start
+
 handleLap:
+	mov lastState, #02h	; Set the last state to 0x02 (lap)
+
 	jmp printLap
 
-handleStop:
-	lcall printNums
-	jmp printStop
+canMoveReset:
+	mov a, #0FCh 	; test if in stop state
+	add a, lastState
+	jc handleReset
+
+	mov a, #0FEh 	; test if in lap state
+	add a, lastState
+	jc handleReset
+
+	mov a, #0FDh 	; test if in reset state
+	add a, lastState
+	jc handleReset
+
+	jmp main	; only state left is start
 
 handleReset:
+	mov lastState, #03h	; Set the last state to 0x03 (reset)
+
 	mov decimalCount, #00h	; resets the decimal count to zero 
 	mov onesCount, #00h	; resets the ones count to zero
 	mov tensCount, #00h	; resets the tens count to zero
 	lcall printNums
 	ljmp printReset
 
+canMoveStop:
+	mov a, #0FCh 	; test if in stop state
+	add a, lastState
+	jc handleStop
+
+	mov a, #0FEh 	; test if in lap state
+	add a, lastState
+	jc main
+
+	mov a, #0FDh 	; test if in reset state
+	add a, lastState
+	jc main
+
+	jmp handleStop	; only state left is start
+
+handleStop:
+	mov lastState, #04h	; Set the last state to 0x04 (stop)
+	lcall printNums
+	jmp printStop
+
 printNums:
-	mov command, #80h
+	mov command, #80h	; Setup which LCD block we print to
 	lcall writeCmd
 
 	; Print value for tens count
 	mov a, tensCount
-	movc a, @a+dptr		; reference to the lookup table 
+	movc a, @a+dptr		; Reference to the lookup table
 	mov text, a
 	lcall writeText
 
 	; Print value for ones count
 	mov a, onesCount
-	movc a, @a+dptr		; reference to the lookup table 
+	movc a, @a+dptr		; Reference to the lookup table
 	mov text, a
 	lcall writeText
 
 	; Print the decimal place
-	mov text, #2Eh 
+	mov text, #2Eh
 	lcall writeText
 
 	; Print value for decimal count
@@ -152,13 +217,13 @@ printNums:
 
 	ret
 
-; show the start label on the LCD display 
+; show the start label on the LCD display
 printStart:
 	; Move the cursor
-	mov command, #0C6h
+	mov command, #0C6h	; Setup which LCD block to print to
 	lcall writeCmd
 
-	mov text, #53h ; S
+	mov text, #53h ; write S
 	lcall writeText
 
 	mov text, #74h ; write t
@@ -175,9 +240,9 @@ printStart:
 
 	ljmp main
 
-; show the print label on the LCD display 
+; show the reset label on the LCD display
 printReset:
-	mov command, #0C6h
+	mov command, #0C6h	; Setup which LCD block to print to
 	lcall writeCmd
 
 	mov text, #52h ; R
@@ -197,9 +262,9 @@ printReset:
 
 	ljmp main
 
-; show the stop label on the LCD display 
+; show the stop label on the LCD display
 printStop:
-	mov command, #0C6h
+	mov command, #0C6h	; Setup which LCD block to print to
 	lcall writeCmd
 
 	mov text, #53h ; S
@@ -219,9 +284,9 @@ printStop:
 
 	ljmp main
 
-; show the lap label on the LCD display 
+; show the lap label on the LCD display
 printLap:
-	mov command, #0C6h
+	mov command, #0C6h	; Setup which LCD block to print to
 	lcall writeCmd
 
 	mov text, #4Ch ; L
@@ -240,62 +305,65 @@ printLap:
 	lcall writeText
 
 	ljmp main
-	
-; Utility
+
+; Utility functions
 writeCmd:
-	mov P0, command
-	clr P1.2 ; clear RS
-	clr P1.1 ; clear R/W
+	mov P0, command	; Move active command
+	clr P1.2 	; clear RS
+	clr P1.1 	; clear R/W
 	lcall LCDclock
 	ret
 
 writeText:
-	mov P0, text
-	setb P1.2 ; set RS
-	clr P1.1 ; clear R/W
+	mov P0, text	; Move text to write
+	setb P1.2 	; set RS
+	clr P1.1 	; clear R/W
 	lcall LCDclock
 	ret
 
-LCDclock:
-	setb P1.0 ; enable
+LCDclock:		; Clock the LCD and update the display
+	setb P1.0 	; enable
 	nop
-	clr P1.0 ; disable
+	clr P1.0 	; disable
 	nop
-	setb P1.0 ; enable it
+	setb P1.0 	; enable it
 	nop
 	nop
 	nop
 	ret
 
-initDelay:
+initDelay:			; Delay for 50ms
 	clr TF0
 	clr TR0
 	mov TH0, #3Ch
 	mov TL0, #0AFh
 	setb TR0
-	delayLoop: 
+	delayLoop:
 		jnb TF0, delayLoop
 	clr TR0
 	clr TF0
 	ret
 
-; !!! Do not let program flow after here! 
-; !!! Lookup table for display 
+msDelay:			; Delay for 100 ms
+	lcall initDelay
+	lcall initDelay
 
+	ret
+
+
+; Lookup table for display
 table:
 	;		MSB						LSB
 	;		g	f	e	d	c	b	a
-.db 30H	;	0	0	1	1	1	1	1	1	0x3F
-.db 31H	;	1	0	0	0	0	1	1	0	0x06
-.db 32H	;	2	1	0	1	1	0	1	1	0x5B
-.db 33H	;	3	1	0	0	1	1	1	1	0x4F
-.db 34H	;	4	1	1	0	0	1	1	0	0x66
-.db 35H	;	5	1	1	0	1	1	0	1	0x6D
-.db 36H	;	6	1	1	1	1	1	0	0	0x7C
-.db 37H	;	7	0	0	0	0	1	1	1	0x07
-.db 38H	;	8	1	1	1	1	1	1	1	0x7F
-.db 39H	;	9	1	1	0	1	1	1	1	0x6F
+.db 30h	;	0	0	1	1	1	1	1	1	0x3F
+.db 31h	;	1	0	0	0	0	1	1	0	0x06
+.db 32h	;	2	1	0	1	1	0	1	1	0x5B
+.db 33h	;	3	1	0	0	1	1	1	1	0x4F
+.db 34h	;	4	1	1	0	0	1	1	0	0x66
+.db 35h	;	5	1	1	0	1	1	0	1	0x6D
+.db 36h	;	6	1	1	1	1	1	0	0	0x7C
+.db 37h	;	7	0	0	0	0	1	1	1	0x07
+.db 38h	;	8	1	1	1	1	1	1	1	0x7F
+.db 39h	;	9	1	1	0	1	1	1	1	0x6F
 
 .end
-
-

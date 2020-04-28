@@ -26,9 +26,9 @@ command equ 40h		; hold the command to be executed on the LCD
 text equ 41h		; hold the value to be written to the LCD
 lastState equ 45h	; hold the value of the last state (1 = start FF, 2 = lap FE, 3 = reset FD, 4 = stop FC)
 
-decimalCount equ 42h
-onesCount equ 43h
-tensCount equ 44h
+decimalCount equ 42h	; set variable to count tenths place
+onesCount equ 43h	; set variable to count ones place
+tensCount equ 44h	; set variable to count tens place
 
 initProgram:
 mov dptr, #Table ; set the lookup table
@@ -63,20 +63,20 @@ canMoveStart:	; Determine if we can move to the start state
 handleStart:
 	mov lastState, #01h	; Set the last state to 0x01 (start)
 
-	mov a, #0f7h 		; Set accum to 247
+	mov a, #0f7h 		; Set accumulator to 247
 	add a, decimalCount	; Add the decimal count to accumulator
 	jc testOnes		; Decimal is > 9, try to increase ones place
 	jnc increaseDecimal	; Decimal is < 9, increase decimal
 
 	testOnes:		; Test to see if ones place < 9
-	mov a, #0f7h
-	add a, onesCount
+	mov a, #0f7h		; set accumulator to 247
+	add a, onesCount	; Add the ones count to accumulator
 	jc testTens		; If we carry, then ones & decimal == 9, tst the tens place
 	jnc increaseOnes	; If we don't carry, increment ones
 
 	testTens:		; Test to see tens place is < 9
-	mov a, #0f7h
-	add a, tensCount
+	mov a, #0f7h		; set accumulator to 247
+	add a, tensCount	; add tens count to accumulator
 	jc zeroAll		; If it equals 9, then we should zero everything out
 	jnc increaseTens	; If it is < 9, increment tens place
 
@@ -121,21 +121,21 @@ main:
 
 	sjmp main		; No button is pressed, so we will just go back to main
 
-canMoveLap:	; Determine if we can move to the lap state
-	mov a, #0FCh 	; test if in stop state
-	add a, lastState
-	jc handleStop
+canMoveLap:			; Determine if we can move to the lap state
+	mov a, #0FCh 		; test if in stop state
+	add a, lastState	; add last state to accumulator
+	jc handleStop		; jump to stop handler if carry flag is high
 
-	mov a, #0FDh 	; test if in reset state
-	add a, lastState
-	jc handleReset
+	mov a, #0FDh 		; test if in reset state	
+	add a, lastState	; add last state to accumulator
+	jc handleReset		; jump to reset handler if carry flag is high
 
-	mov a, #0FEh 	; test if in lap state
-	add a, lastState
-	jc handleLap
+	mov a, #0FEh 		; test if in lap state
+	add a, lastState	; add last state to accumulator
+	jc handleLap		; jump to lap handler if carry flag is high
 
 
-	jmp handleLap	; only state left is start
+	jmp handleLap		; only state left is start
 
 handleLap:
 	mov lastState, #02h	; Set the last state to 0x02 (lap)
@@ -143,20 +143,20 @@ handleLap:
 	jmp printLap
 
 canMoveReset:
-	mov a, #0FCh 	; test if in stop state
+	mov a, #0FCh 		; test if in stop state
 	add a, lastState
 	jc handleReset
 
-	mov a, #0FDh 	; test if in reset state
+	mov a, #0FDh 		; test if in reset state
 	add a, lastState
 	jc handleReset
 
-	mov a, #0FEh 	; test if in lap state
+	mov a, #0FEh 		; test if in lap state
 	add a, lastState
 	jc handleReset
 
 
-	jmp handleStart	; only state left is start
+	jmp handleStart		; only state left is start
 
 handleReset:
 	mov lastState, #03h	; Set the last state to 0x03 (reset)
@@ -168,19 +168,19 @@ handleReset:
 	ljmp printReset
 
 canMoveStop:
-	mov a, #0FCh 	; test if in stop state
+	mov a, #0FCh 		; test if in stop state
 	add a, lastState
 	jc handleStop
 
-	mov a, #0FDh 	; test if in reset state
+	mov a, #0FDh 		; test if in reset state
 	add a, lastState
 	jc handleReset
 
-	mov a, #0FEh 	; test if in lap state
+	mov a, #0FEh 		; test if in lap state
 	add a, lastState
 	jc handleLap
 
-	jmp handleStop	; only state left is start
+	jmp handleStop		; only state left is start
 
 handleStop:
 	mov lastState, #04h	; Set the last state to 0x04 (stop)
@@ -192,30 +192,30 @@ printNums:
 	lcall writeCmd
 
 	; Print value for tens count
-	mov a, tensCount
+	mov a, tensCount	; move tens counter to accumulator
 	movc a, @a+dptr		; Reference to the lookup table
 	mov text, a
-	lcall writeText
+	lcall writeText		; print text
 
 	; Print value for ones count
-	mov a, onesCount
+	mov a, onesCount	; move ones count to accumulator
 	movc a, @a+dptr		; Reference to the lookup table
 	mov text, a
-	lcall writeText
+	lcall writeText		; print text
 
 	; Print the decimal place
-	mov text, #2Eh
-	lcall writeText
+	mov text, #2Eh		; hex value for period symbol
+	lcall writeText		; print text
 
 	; Print value for decimal count
-	mov a, decimalCount
-	movc a, @a+dptr
+	mov a, decimalCount	; move decimal count to accumulator
+	movc a, @a+dptr		; reference lookup table
 	mov text, a
-	lcall writeText
+	lcall writeText		; print text
 
 	; Print the s
-	mov text, #73h
-	lcall writeText
+	mov text, #73h		; hex value for s
+	lcall writeText		; print text
 
 	ret
 
@@ -333,9 +333,9 @@ LCDclock:		; Clock the LCD and update the display
 	ret
 
 initDelay:			; Delay for 50ms
-	clr TF0
+	clr TF0			; clear flags
 	clr TR0
-	mov TH0, #3Ch
+	mov TH0, #3Ch		; load timer value
 	mov TL0, #0AFh
 	setb TR0
 	delayLoop:
@@ -345,15 +345,15 @@ initDelay:			; Delay for 50ms
 	ret
 
 msDelay:			; Delay for 100 ms
-	lcall initDelay
-	lcall initDelay
+	lcall initDelay		; one 50ms delay
+	lcall initDelay		; second 50ms delay
 
 	ret
 
 clockDelay:			; Delay for 3ms; used in the clock
-	clr TF0
+	clr TF0			; clear flags
 	clr TR0
-	mov TH0, #0F4h
+	mov TH0, #0F4h		; load timer value (3ms)
 	mov TL0, #47h
 	setb TR0
 	delayLoop2:

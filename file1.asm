@@ -20,7 +20,7 @@
 ; P1.6 = Stop
 ; P1.7 = Reset
 ; *********************NOTE*********************
-; For use on a real device, lines 41, 109 and 330 should be uncommented out. For this lab, ignore delays was set to true on the LCD
+; For use on a real device, lines 42, 110 and 332 should be uncommented out. For this lab, ignore delays was set to true on the LCD
 
 command equ 40h		; hold the command to be executed on the LCD
 text equ 41h		; hold the value to be written to the LCD
